@@ -25,6 +25,7 @@ import io.github.dsheirer.dsp.filter.fir.complex.ComplexFIRFilter2;
 import io.github.dsheirer.dsp.filter.fir.real.RealFIRFilter2;
 import io.github.dsheirer.dsp.filter.resample.RealResampler;
 import io.github.dsheirer.dsp.gain.AutomaticGainControl;
+import io.github.dsheirer.dsp.gain.ComplexAGCSquelchControl;
 import io.github.dsheirer.module.Module;
 import io.github.dsheirer.sample.Listener;
 import io.github.dsheirer.sample.buffer.IReusableBufferProvider;
@@ -52,6 +53,7 @@ public class AMDemodulatorModule extends Module implements ISourceEventListener,
     private AMDemodulator mDemodulator;
     private RealFIRFilter2 mLowPassFilter;
     private AutomaticGainControl mAGC = new AutomaticGainControl();
+    private ComplexAGCSquelchControl mAGCSquelch = new ComplexAGCSquelchControl(1.0f, -30.0f);
     private double mChannelBandwidth;
     private double mOutputSampleRate;
     private RealResampler mResampler;
@@ -64,10 +66,20 @@ public class AMDemodulatorModule extends Module implements ISourceEventListener,
      * @param channelBandwidth to use in filtering the baseband input buffers
      * @param outputSampleRate specifies the resampled output sample rate for demodulated audio
      */
-    public AMDemodulatorModule(double channelBandwidth, double outputSampleRate)
+    public AMDemodulatorModule(double channelBandwidth, double outputSampleRate,
+                               double squelchLevel, boolean squelchMode)
     {
         mChannelBandwidth = channelBandwidth;
         mOutputSampleRate = outputSampleRate;
+
+        mAGCSquelch.setSquelchThreshold((float) squelchLevel);
+
+        if(squelchMode == true)
+        {
+            mAGCSquelch.setSquelchEnable();
+        } else {
+            mAGCSquelch.setSquelchDisable();
+        }
 
         mDemodulator = new AMDemodulator(500.0f);
 
@@ -109,8 +121,21 @@ public class AMDemodulatorModule extends Module implements ISourceEventListener,
     public void receive(ReusableComplexBuffer basebandBuffer)
     {
         ReusableComplexBuffer filteredBuffer = mIQFilter.filter(basebandBuffer);
-        ReusableFloatBuffer demodulated = mDemodulator.demodulate(filteredBuffer);
-        mResampler.resample(demodulated);
+        ReusableFloatBuffer rssi = mAGCSquelch.process(filteredBuffer);
+
+        if(mAGCSquelch.getSquelchMode() == mAGCSquelch.SQUELCH_SIGNAL_HIGH ||
+                mAGCSquelch.getSquelchMode() == mAGCSquelch.SQUELCH_DISABLED)
+        {
+            filteredBuffer.incrementUserCount();
+            ReusableFloatBuffer demodulated = mDemodulator.demodulate(filteredBuffer);
+
+            if(mResampler != null)
+            {
+                mResampler.resample(demodulated);
+            } else {
+                demodulated.decrementUserCount();
+            }
+        }
     }
 
     /**

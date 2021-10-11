@@ -316,7 +316,9 @@ public class DecoderFactory
         modules.add(audioModuleFM);
         if(channel.getSourceConfiguration().getSourceType() == SourceType.TUNER)
         {
-            modules.add(new FMDemodulatorModule(FM_CHANNEL_BANDWIDTH, DEMODULATED_AUDIO_SAMPLE_RATE));
+            double squelchLevel = ((DecodeConfigNBFM)decodeConfig).getSquelchLevel();
+            boolean squelchMode = ((DecodeConfigNBFM)decodeConfig).getSquelchMode();
+            modules.add(new FMDemodulatorModule(FM_CHANNEL_BANDWIDTH, DEMODULATED_AUDIO_SAMPLE_RATE, squelchLevel, squelchMode));
         }
     }
 
@@ -335,7 +337,9 @@ public class DecoderFactory
 
         if(channel.getSourceConfiguration().getSourceType() == SourceType.TUNER)
         {
-            modules.add(new AMDemodulatorModule(AM_CHANNEL_BANDWIDTH, DEMODULATED_AUDIO_SAMPLE_RATE));
+            double squelchLevel = ((DecodeConfigAM)decodeConfig).getSquelchLevel();
+            boolean squelchMode = ((DecodeConfigAM)decodeConfig).getSquelchMode();
+            modules.add(new AMDemodulatorModule(AM_CHANNEL_BANDWIDTH, DEMODULATED_AUDIO_SAMPLE_RATE, squelchLevel, squelchMode));
         }
     }
 

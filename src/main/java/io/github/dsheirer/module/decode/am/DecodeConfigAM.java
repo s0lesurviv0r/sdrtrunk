@@ -27,10 +27,46 @@ import io.github.dsheirer.source.tuner.channel.ChannelSpecification;
 
 public class DecodeConfigAM extends DecodeConfiguration
 {
+    private float mSquelchLevel;
+    private boolean mSquelchMode = false;
     private boolean mRecordAudio = false;
 
 	public DecodeConfigAM()
     {
+    }
+
+    /**
+     * Sets the squelch level
+     */
+    public void setSquelchLevel(float squelch_level)
+    {
+        mSquelchLevel = squelch_level;
+    }
+
+    /**
+     * Gets the squelch level
+     */
+    @JacksonXmlProperty(isAttribute = true, localName = "squelchLevel")
+    public float getSquelchLevel()
+    {
+        return mSquelchLevel;
+    }
+
+    /**
+     * Sets the squelch mode
+     */
+    public void setSquelchMode(boolean squelch_mode)
+    {
+        mSquelchMode = squelch_mode;
+    }
+
+    /**
+     * Gets the squelch mode
+     */
+    @JacksonXmlProperty(isAttribute = true, localName = "squelchMode")
+    public boolean getSquelchMode()
+    {
+        return mSquelchMode;
     }
 
     @JacksonXmlProperty(isAttribute =  true, localName = "recordAudio")

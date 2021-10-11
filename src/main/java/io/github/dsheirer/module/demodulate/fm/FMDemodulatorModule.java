@@ -22,6 +22,7 @@ import io.github.dsheirer.dsp.filter.fir.FIRFilterSpecification;
 import io.github.dsheirer.dsp.filter.fir.complex.ComplexFIRFilter2;
 import io.github.dsheirer.dsp.filter.resample.RealResampler;
 import io.github.dsheirer.dsp.fm.FMDemodulator;
+import io.github.dsheirer.dsp.gain.ComplexAGCSquelchControl;
 import io.github.dsheirer.module.Module;
 import io.github.dsheirer.sample.Listener;
 import io.github.dsheirer.sample.buffer.IReusableBufferProvider;
@@ -45,6 +46,7 @@ public class FMDemodulatorModule extends Module implements ISourceEventListener,
 
     private ComplexFIRFilter2 mIQFilter;
     private FMDemodulator mDemodulator = new FMDemodulator();
+    private ComplexAGCSquelchControl mAGCSquelch;
     private RealResampler mResampler;
     private SourceEventProcessor mSourceEventProcessor = new SourceEventProcessor();
     private Listener<ReusableFloatBuffer> mResampledReusableBufferListener;
@@ -62,6 +64,27 @@ public class FMDemodulatorModule extends Module implements ISourceEventListener,
     {
         mChannelBandwidth = channelBandwidth;
         mOutputSampleRate = outputSampleRate;
+        mAGCSquelch = null;
+    }
+
+    /**
+     * Creates an FM demodulator for the specified channel bandwidth, output sample rate and squelch level.
+     *
+     * for single channel NBFM with squelch.
+     */
+    public FMDemodulatorModule(double channelBandwidth, double outputSampleRate,
+                               double squelchLevel, boolean squelchMode)
+    {
+        mChannelBandwidth = channelBandwidth;
+        mOutputSampleRate = outputSampleRate;
+
+        mAGCSquelch = new ComplexAGCSquelchControl(1.0f, (float) squelchLevel);
+        if(squelchMode == true)
+        {
+            mAGCSquelch.setSquelchEnable();
+        } else {
+            mAGCSquelch.setSquelchDisable();
+        }
     }
 
     @Override
@@ -115,15 +138,34 @@ public class FMDemodulatorModule extends Module implements ISourceEventListener,
         }
 
         ReusableComplexBuffer basebandFilteredBuffer = mIQFilter.filter(reusableComplexBuffer);
-        ReusableFloatBuffer demodulatedBuffer = mDemodulator.demodulate(basebandFilteredBuffer);
+        if(mAGCSquelch == null)
+        {
+            ReusableFloatBuffer demodulatedBuffer = mDemodulator.demodulate(basebandFilteredBuffer);
 
-        if(mResampler != null)
-        {
-            mResampler.resample(demodulatedBuffer);
-        }
-        else
-        {
-            demodulatedBuffer.decrementUserCount();
+            if(mResampler != null)
+            {
+                mResampler.resample(demodulatedBuffer);
+            }
+            else
+            {
+                demodulatedBuffer.decrementUserCount();
+            }
+        } else {
+            ReusableFloatBuffer rssiBuffer = mAGCSquelch.process(basebandFilteredBuffer);
+
+            if(mAGCSquelch.getSquelchMode() == mAGCSquelch.SQUELCH_SIGNAL_HIGH ||
+                    mAGCSquelch.getSquelchMode() == mAGCSquelch.SQUELCH_DISABLED)
+            {
+                basebandFilteredBuffer.incrementUserCount();
+                ReusableFloatBuffer demodulatedBuffer = mDemodulator.demodulate(basebandFilteredBuffer);
+
+                if(mResampler != null)
+                {
+                    mResampler.resample(demodulatedBuffer);
+                } else {
+                    demodulatedBuffer.decrementUserCount();
+                }
+            }
         }
     }
 
